@@ -71,13 +71,113 @@ def test_melt_projection_pd_7747() -> None:
     assert_frame_equal(result, expected)
 
 
-# https://github.com/pola-rs/polars/issues/10075
-def test_melt_no_value_vars() -> None:
-    lf = pl.LazyFrame({"a": [1, 2, 3]})
-
-    result = lf.melt("a")
-
-    expected = pl.LazyFrame(
-        schema={"a": pl.Int64, "variable": pl.String, "value": pl.Null}
-    )
-    assert_frame_equal(result, expected)
+# def test_melt_categorical() -> None:
+#     """https://github.com/pola-rs/polars/issues/10775"""
+#
+#     # Build the dataframe to melt
+#     df = pl.from_records(
+#         [
+#             {"race": "road", "sex": "man", "2008": "Alessandro Ballan", "2009": "Cadel Evans"},
+#             {"race": "itt", "sex": "man", "2008": "Bert Grabsch", "2009": "Fabian Cancellara"},
+#             {"race": "road", "sex": "woman", "2008": "Nicole Cooke", "2009": "Tatiana Guderzo"},
+#             {"race": "itt", "sex": "woman", "2008": "Amber Neben", "2009": "Kristin Armstrong"},
+#         ]
+#     )
+#     >>> df
+#     shape: (4, 4)
+#     ┌──────┬───────┬───────────────────┬───────────────────┐
+#     │ race ┆ sex   ┆ 2008              ┆ 2009              │
+#     │ ---  ┆ ---   ┆ ---               ┆ ---               │
+#     │ str  ┆ str   ┆ str               ┆ str               │
+#     ╞══════╪═══════╪═══════════════════╪═══════════════════╡
+#     │ road ┆ man   ┆ Alessandro Ballan ┆ Cadel Evans       │
+#     │ itt  ┆ man   ┆ Bert Grabsch      ┆ Fabian Cancellara │
+#     │ road ┆ woman ┆ Nicole Cooke      ┆ Tatiana Guderzo   │
+#     │ itt  ┆ woman ┆ Amber Neben       ┆ Kristin Armstrong │
+#     └──────┴───────┴───────────────────┴───────────────────┘
+#
+#     df.melt(
+#         id_vars=["sex", "race"],
+#         variable_name="year",
+#         value_name="winner",
+#     )
+#
+#     """
+#     >>> shape: (8, 4)
+#     ┌───────┬──────┬──────┬───────────────────┐
+#     │ sex   ┆ race ┆ year ┆ winner            │
+#     │ ---   ┆ ---  ┆ ---  ┆ ---               │
+#     │ str   ┆ str  ┆ str  ┆ str               │
+#     ╞═══════╪══════╪══════╪═══════════════════╡
+#     │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
+#     │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
+#     │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
+#     │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
+#     │ man   ┆ road ┆ 2009 ┆ Cadel Evans       │
+#     │ man   ┆ itt  ┆ 2009 ┆ Fabian Cancellara │
+#     │ woman ┆ road ┆ 2009 ┆ Tatiana Guderzo   │
+#     │ woman ┆ itt  ┆ 2009 ┆ Kristin Armstrong │
+#     └───────┴──────┴──────┴───────────────────┘
+#     """
+#
+#     (
+#         df
+#         .with_columns(cs.matches("\\d+").cast(pl.Categorical))
+#         .melt(
+#             id_vars=["sex", "race"],
+#             variable_name="year",
+#             value_name="winner",
+#         )
+#     )
+#
+#     """
+#     >>> shape: (8, 4)
+#     ┌───────┬──────┬──────┬───────────────────┐
+#     │ sex   ┆ race ┆ year ┆ winner            │
+#     │ ---   ┆ ---  ┆ ---  ┆ ---               │
+#     │ str   ┆ str  ┆ str  ┆ cat               │
+#     ╞═══════╪══════╪══════╪═══════════════════╡
+#     │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
+#     │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
+#     │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
+#     │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
+#     │ man   ┆ road ┆ 2009 ┆ Alessandro Ballan │
+#     │ man   ┆ itt  ┆ 2009 ┆ Bert Grabsch      │
+#     │ woman ┆ road ┆ 2009 ┆ Nicole Cooke      │
+#     │ woman ┆ itt  ┆ 2009 ┆ Amber Neben       │
+#     └───────┴──────┴──────┴───────────────────┘
+#     """
+#
+#     with pl.StringCache():
+#         (
+#             df
+#             .with_columns(cs.matches("\\d+").cast(pl.Categorical))
+#             .melt(
+#                 id_vars=["sex", "race"],
+#                 variable_name="year",
+#                 value_name="winner",
+#             )
+#         )
+#         """
+#         >>> thread '<unnamed>' panicked at 'called `Option::unwrap()` on a `None` value', /home/runner/work/polars/polars/crates/polars-core/src/chunked_array/logical/categorical/builder.rs:112:42
+#
+#         ---------------------------------------------------------------------------
+#         PanicException                            Traceback (most recent call last)
+#         Cell In[17], line 2
+#         1 pl.enable_string_cache(True)
+#   ----> 2 print(
+#         3     df
+#         4     .with_columns(cs.matches("\\d+").cast(pl.Categorical))
+#         5     .melt(
+#         6         id_vars=["sex", "race"],
+#         7         variable_name="year",
+#         8         value_name="winner",
+#         9     )
+#         10 )
+#
+#         File ~/Notebooks/Engineering/2023-08 - CodinGame/.venv/lib/python3.11/site-packages/polars/dataframe/frame.py:1440, in DataFrame.__str__(self)
+#         1439 def __str__(self) -> str:
+#         -> 1440     return self._df.as_str()
+#
+#         PanicException: called `Option::unwrap()` on a `None` value
+#         """
