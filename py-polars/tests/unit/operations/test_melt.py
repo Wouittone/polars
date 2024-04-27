@@ -1,3 +1,5 @@
+import pytest
+
 import polars as pl
 import polars.selectors as cs
 from polars.testing import assert_frame_equal
@@ -7,13 +9,13 @@ def test_melt() -> None:
     df = pl.DataFrame({"A": ["a", "b", "c"], "B": [1, 3, 5], "C": [2, 4, 6]})
     for _idv, _vv in (("A", ("B", "C")), (cs.string(), cs.integer())):
         melted_eager = df.melt(id_vars="A", value_vars=["B", "C"])
-        assert all(melted_eager["value"] == [1, 3, 5, 2, 4, 6])
+        assert melted_eager["value"].to_list() == [1, 3, 5, 2, 4, 6]
 
         melted_lazy = df.lazy().melt(id_vars="A", value_vars=["B", "C"])
-        assert all(melted_lazy.collect()["value"] == [1, 3, 5, 2, 4, 6])
+        assert melted_lazy.collect()["value"].to_list() == [1, 3, 5, 2, 4, 6]
 
     melted = df.melt(id_vars="A", value_vars="B")
-    assert all(melted["value"] == [1, 3, 5])
+    assert melted["value"].to_list() == [1, 3, 5]
     n = 3
 
     for melted in [df.melt(), df.lazy().melt().collect()]:
@@ -71,113 +73,114 @@ def test_melt_projection_pd_7747() -> None:
     assert_frame_equal(result, expected)
 
 
-# def test_melt_categorical() -> None:
-#     """https://github.com/pola-rs/polars/issues/10775"""
-#
-#     # Build the dataframe to melt
-#     df = pl.from_records(
-#         [
-#             {"race": "road", "sex": "man", "2008": "Alessandro Ballan", "2009": "Cadel Evans"},
-#             {"race": "itt", "sex": "man", "2008": "Bert Grabsch", "2009": "Fabian Cancellara"},
-#             {"race": "road", "sex": "woman", "2008": "Nicole Cooke", "2009": "Tatiana Guderzo"},
-#             {"race": "itt", "sex": "woman", "2008": "Amber Neben", "2009": "Kristin Armstrong"},
-#         ]
-#     )
-#     >>> df
-#     shape: (4, 4)
-#     ┌──────┬───────┬───────────────────┬───────────────────┐
-#     │ race ┆ sex   ┆ 2008              ┆ 2009              │
-#     │ ---  ┆ ---   ┆ ---               ┆ ---               │
-#     │ str  ┆ str   ┆ str               ┆ str               │
-#     ╞══════╪═══════╪═══════════════════╪═══════════════════╡
-#     │ road ┆ man   ┆ Alessandro Ballan ┆ Cadel Evans       │
-#     │ itt  ┆ man   ┆ Bert Grabsch      ┆ Fabian Cancellara │
-#     │ road ┆ woman ┆ Nicole Cooke      ┆ Tatiana Guderzo   │
-#     │ itt  ┆ woman ┆ Amber Neben       ┆ Kristin Armstrong │
-#     └──────┴───────┴───────────────────┴───────────────────┘
-#
-#     df.melt(
-#         id_vars=["sex", "race"],
-#         variable_name="year",
-#         value_name="winner",
-#     )
-#
-#     """
-#     >>> shape: (8, 4)
-#     ┌───────┬──────┬──────┬───────────────────┐
-#     │ sex   ┆ race ┆ year ┆ winner            │
-#     │ ---   ┆ ---  ┆ ---  ┆ ---               │
-#     │ str   ┆ str  ┆ str  ┆ str               │
-#     ╞═══════╪══════╪══════╪═══════════════════╡
-#     │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
-#     │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
-#     │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
-#     │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
-#     │ man   ┆ road ┆ 2009 ┆ Cadel Evans       │
-#     │ man   ┆ itt  ┆ 2009 ┆ Fabian Cancellara │
-#     │ woman ┆ road ┆ 2009 ┆ Tatiana Guderzo   │
-#     │ woman ┆ itt  ┆ 2009 ┆ Kristin Armstrong │
-#     └───────┴──────┴──────┴───────────────────┘
-#     """
-#
-#     (
-#         df
-#         .with_columns(cs.matches("\\d+").cast(pl.Categorical))
-#         .melt(
-#             id_vars=["sex", "race"],
-#             variable_name="year",
-#             value_name="winner",
-#         )
-#     )
-#
-#     """
-#     >>> shape: (8, 4)
-#     ┌───────┬──────┬──────┬───────────────────┐
-#     │ sex   ┆ race ┆ year ┆ winner            │
-#     │ ---   ┆ ---  ┆ ---  ┆ ---               │
-#     │ str   ┆ str  ┆ str  ┆ cat               │
-#     ╞═══════╪══════╪══════╪═══════════════════╡
-#     │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
-#     │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
-#     │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
-#     │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
-#     │ man   ┆ road ┆ 2009 ┆ Alessandro Ballan │
-#     │ man   ┆ itt  ┆ 2009 ┆ Bert Grabsch      │
-#     │ woman ┆ road ┆ 2009 ┆ Nicole Cooke      │
-#     │ woman ┆ itt  ┆ 2009 ┆ Amber Neben       │
-#     └───────┴──────┴──────┴───────────────────┘
-#     """
-#
-#     with pl.StringCache():
-#         (
-#             df
-#             .with_columns(cs.matches("\\d+").cast(pl.Categorical))
-#             .melt(
-#                 id_vars=["sex", "race"],
-#                 variable_name="year",
-#                 value_name="winner",
-#             )
-#         )
-#         """
-#         >>> thread '<unnamed>' panicked at 'called `Option::unwrap()` on a `None` value', /home/runner/work/polars/polars/crates/polars-core/src/chunked_array/logical/categorical/builder.rs:112:42
-#
-#         ---------------------------------------------------------------------------
-#         PanicException                            Traceback (most recent call last)
-#         Cell In[17], line 2
-#         1 pl.enable_string_cache(True)
-#   ----> 2 print(
-#         3     df
-#         4     .with_columns(cs.matches("\\d+").cast(pl.Categorical))
-#         5     .melt(
-#         6         id_vars=["sex", "race"],
-#         7         variable_name="year",
-#         8         value_name="winner",
-#         9     )
-#         10 )
-#
-#         File ~/Notebooks/Engineering/2023-08 - CodinGame/.venv/lib/python3.11/site-packages/polars/dataframe/frame.py:1440, in DataFrame.__str__(self)
-#         1439 def __str__(self) -> str:
-#         -> 1440     return self._df.as_str()
-#
-#         PanicException: called `Option::unwrap()` on a `None` value
-#         """
+@pytest.mark.parametrize(
+    ("cast", "use_string_cache"),
+    [(False, None), (True, False), (True, True)],
+)
+def test_melt_categorical_10775(cast, use_string_cache) -> None:
+    """
+    TODO: summary.
+
+    TODO: reduce the DataFrame size to make the test more readable.
+    TODO: add more context to this docstring.
+    # Case 1: Melt without casting, years are still of type pl.String
+    # Case 2: Melt while casting years to pl.Categorical,
+              with a local categorical string cache FIXME: shorter line
+    # Case 3: Melt while casting years to pl.Categorical,
+              with a local categorical string cache FIXME: shorter line
+    """
+    """
+    >>> df_to_pivot
+    shape: (4, 4)
+    ┌──────┬───────┬───────────────────┬───────────────────┐
+    │ race ┆ sex   ┆ 2008              ┆ 2009              │
+    │ ---  ┆ ---   ┆ ---               ┆ ---               │
+    │ str  ┆ str   ┆ str               ┆ str               │
+    ╞══════╪═══════╪═══════════════════╪═══════════════════╡
+    │ road ┆ man   ┆ Alessandro Ballan ┆ Cadel Evans       │
+    │ itt  ┆ man   ┆ Bert Grabsch      ┆ Fabian Cancellara │
+    │ road ┆ woman ┆ Nicole Cooke      ┆ Tatiana Guderzo   │
+    │ itt  ┆ woman ┆ Amber Neben       ┆ Kristin Armstrong │
+    └──────┴───────┴───────────────────┴───────────────────┘
+    """
+    df_to_pivot = pl.from_records(
+        [
+            {
+                "race": "road",
+                "sex": "man",
+                "2008": "Alessandro Ballan",
+                "2009": "Cadel Evans",
+            },
+            {
+                "race": "itt",
+                "sex": "man",
+                "2008": "Bert Grabsch",
+                "2009": "Fabian Cancellara",
+            },
+            {
+                "race": "road",
+                "sex": "woman",
+                "2008": "Nicole Cooke",
+                "2009": "Tatiana Guderzo",
+            },
+            {
+                "race": "itt",
+                "sex": "woman",
+                "2008": "Amber Neben",
+                "2009": "Kristin Armstrong",
+            },
+        ]
+    )
+
+    """
+    >>> expected
+    shape: (8, 4)
+    ┌───────┬──────┬──────┬───────────────────┐
+    │ sex   ┆ race ┆ year ┆ winner            │
+    │ ---   ┆ ---  ┆ ---  ┆ ---               │
+    │ str   ┆ str  ┆ str  ┆ str               │
+    ╞═══════╪══════╪══════╪═══════════════════╡
+    │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
+    │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
+    │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
+    │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
+    │ man   ┆ road ┆ 2009 ┆ Cadel Evans       │
+    │ man   ┆ itt  ┆ 2009 ┆ Fabian Cancellara │
+    │ woman ┆ road ┆ 2009 ┆ Tatiana Guderzo   │
+    │ woman ┆ itt  ┆ 2009 ┆ Kristin Armstrong │
+    └───────┴──────┴──────┴───────────────────┘
+    """
+    expected = pl.DataFrame(
+        {
+            "sex": ["man", "man", "woman", "woman", "man", "man", "woman", "woman"],
+            "race": ["road", "itt", "road", "itt", "road", "itt", "road", "itt"],
+            "year": ["2008", "2008", "2008", "2008", "2009", "2009", "2009", "2009"],
+            "winner": [
+                "Alessandro Ballan",
+                "Bert Grabsch",
+                "Nicole Cooke",
+                "Amber Neben",
+                "Cadel Evans",
+                "Fabian Cancellara",
+                "Tatiana Guderzo",
+                "Kristin Armstrong",
+            ],
+        }
+    )
+
+    if cast:
+        df_to_pivot = df_to_pivot.with_columns(cs.matches("\\d+").cast(pl.Categorical))
+
+    if use_string_cache is not None:
+        pl.enable_string_cache(use_string_cache)
+
+    df_melted = (
+        df_to_pivot.melt(
+            id_vars=["sex", "race"],
+            variable_name="year",
+            value_name="winner",
+        )
+        # Cast back to pl.String for comparison purposes.
+        .cast(pl.String)
+    )
+    assert_frame_equal(expected, df_melted)
