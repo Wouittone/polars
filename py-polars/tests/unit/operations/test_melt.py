@@ -184,3 +184,10 @@ def test_melt_categorical_10775(cast, use_string_cache) -> None:
         .cast(pl.String)
     )
     assert_frame_equal(expected, df_melted)
+
+
+def test_melt_raise_list() -> None:
+    with pytest.raises(pl.exceptions.InvalidOperationError):
+        pl.LazyFrame(
+            {"a": ["x", "y"], "b": [["test", "test2"], ["test3", "test4"]]}
+        ).melt().collect()
