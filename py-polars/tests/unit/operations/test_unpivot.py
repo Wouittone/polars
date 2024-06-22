@@ -77,18 +77,29 @@ def test_unpivot_no_on() -> None:
     lf = pl.LazyFrame({"a": [1, 2, 3]})
 
     result = lf.unpivot(index="a")
-
     expected = pl.LazyFrame(
-        schema={"a": pl.Int64, "variable": pl.String, "value": pl.Null}
+        schema={
+            "a": pl.Int64,
+            "variable": pl.String,
+            "value": pl.Null,
+        }
     )
+
     assert_frame_equal(result, expected)
 
 
 def test_unpivot_raise_list() -> None:
     with pytest.raises(pl.exceptions.InvalidOperationError):
-        pl.LazyFrame(
-            {"a": ["x", "y"], "b": [["test", "test2"], ["test3", "test4"]]}
-        ).unpivot().collect()
+        (
+            pl.LazyFrame(
+                {
+                    "a": ["x", "y"],
+                    "b": [["test", "test2"], ["test3", "test4"]],
+                }
+            )
+            .unpivot()
+            .collect()
+        )
 
 
 def test_unpivot_empty_18170() -> None:
@@ -113,3 +124,115 @@ def test_unpivot_categorical_global() -> None:
         "variable": ["1", "1", "2", "2"],
         "value": ["a", "b", "b", "c"],
     }
+
+
+@pytest.mark.parametrize(
+    ("cast", "use_string_cache"),
+    [(False, None), (True, False), (True, True)],
+)
+def test_melt_categorical_10775(cast, use_string_cache) -> None:
+    """
+    TODO: summary.
+
+    TODO: reduce the DataFrame size to make the test more readable.
+    TODO: add more context to this docstring.
+    # Case 1: Melt without casting, years are still of type pl.String
+    # Case 2: Melt while casting years to pl.Categorical,
+              with a local categorical string cache FIXME: shorter line
+    # Case 3: Melt while casting years to pl.Categorical,
+              with a local categorical string cache FIXME: shorter line
+    """
+    """
+    >>> df_to_pivot
+    shape: (4, 4)
+    ┌──────┬───────┬───────────────────┬───────────────────┐
+    │ race ┆ sex   ┆ 2008              ┆ 2009              │
+    │ ---  ┆ ---   ┆ ---               ┆ ---               │
+    │ str  ┆ str   ┆ str               ┆ str               │
+    ╞══════╪═══════╪═══════════════════╪═══════════════════╡
+    │ road ┆ man   ┆ Alessandro Ballan ┆ Cadel Evans       │
+    │ itt  ┆ man   ┆ Bert Grabsch      ┆ Fabian Cancellara │
+    │ road ┆ woman ┆ Nicole Cooke      ┆ Tatiana Guderzo   │
+    │ itt  ┆ woman ┆ Amber Neben       ┆ Kristin Armstrong │
+    └──────┴───────┴───────────────────┴───────────────────┘
+    """
+    df_to_pivot = pl.from_records(
+        [
+            {
+                "race": "road",
+                "sex": "man",
+                "2008": "Alessandro Ballan",
+                "2009": "Cadel Evans",
+            },
+            {
+                "race": "itt",
+                "sex": "man",
+                "2008": "Bert Grabsch",
+                "2009": "Fabian Cancellara",
+            },
+            {
+                "race": "road",
+                "sex": "woman",
+                "2008": "Nicole Cooke",
+                "2009": "Tatiana Guderzo",
+            },
+            {
+                "race": "itt",
+                "sex": "woman",
+                "2008": "Amber Neben",
+                "2009": "Kristin Armstrong",
+            },
+        ]
+    )
+
+    """
+    >>> expected
+    shape: (8, 4)
+    ┌───────┬──────┬──────┬───────────────────┐
+    │ sex   ┆ race ┆ year ┆ winner            │
+    │ ---   ┆ ---  ┆ ---  ┆ ---               │
+    │ str   ┆ str  ┆ str  ┆ str               │
+    ╞═══════╪══════╪══════╪═══════════════════╡
+    │ man   ┆ road ┆ 2008 ┆ Alessandro Ballan │
+    │ man   ┆ itt  ┆ 2008 ┆ Bert Grabsch      │
+    │ woman ┆ road ┆ 2008 ┆ Nicole Cooke      │
+    │ woman ┆ itt  ┆ 2008 ┆ Amber Neben       │
+    │ man   ┆ road ┆ 2009 ┆ Cadel Evans       │
+    │ man   ┆ itt  ┆ 2009 ┆ Fabian Cancellara │
+    │ woman ┆ road ┆ 2009 ┆ Tatiana Guderzo   │
+    │ woman ┆ itt  ┆ 2009 ┆ Kristin Armstrong │
+    └───────┴──────┴──────┴───────────────────┘
+    """
+    expected = pl.DataFrame(
+        {
+            "sex": ["man", "man", "woman", "woman", "man", "man", "woman", "woman"],
+            "race": ["road", "itt", "road", "itt", "road", "itt", "road", "itt"],
+            "year": ["2008", "2008", "2008", "2008", "2009", "2009", "2009", "2009"],
+            "winner": [
+                "Alessandro Ballan",
+                "Bert Grabsch",
+                "Nicole Cooke",
+                "Amber Neben",
+                "Cadel Evans",
+                "Fabian Cancellara",
+                "Tatiana Guderzo",
+                "Kristin Armstrong",
+            ],
+        }
+    )
+
+    if cast:
+        df_to_pivot = df_to_pivot.with_columns(cs.matches("\\d+").cast(pl.Categorical))
+
+    if use_string_cache is not None:
+        pl.enable_string_cache(use_string_cache)
+    df_melted = (
+        df_to_pivot.melt(
+            id_vars=["sex", "race"],
+            variable_name="year",
+            value_name="winner",
+        )
+        # Cast back to pl.String for comparison purposes.
+        .cast(pl.String)
+    )
+    assert_frame_equal(expected, df_melted)
